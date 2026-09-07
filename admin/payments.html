@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Payments — Admin</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  const root = DASH.renderShell({ title: "Payment Gateway" });
+  root.innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><h2>Payment Gateway Config</h2></div>
+      <label>Site</label><select id="site"></select>
+      <div id="form"><div class="empty">Loading…</div></div>
+    </div>
+  `;
+
+  async function loadSites() {
+    const { sites } = await DASH.apiFetch("/api/admin/sites");
+    document.getElementById("site").innerHTML = sites.map((s) => `<option value="${s.id}">${DASH.escapeHtml(s.label)}</option>`).join("");
+  }
+
+  async function loadConfig() {
+    const site = document.getElementById("site").value;
+    const formEl = document.getElementById("form");
+    formEl.innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      const { config, creds, gateways } = await DASH.apiFetch(`/api/admin/payments/${site}`);
+      formEl.innerHTML = `
+        <label>Provider</label>
+        <select id="provider">${gateways.map((g) => `<option value="${g}" ${g === config.provider ? "selected" : ""}>${g}</option>`).join("")}</select>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:14px">
+          <input type="checkbox" id="enabled" style="width:auto" ${config.enabled ? "checked" : ""} /> Payments enabled
+        </label>
+        <label>Currency</label>
+        <input id="currency" value="${DASH.escapeHtml(config.currency || "INR")}" />
+        <div class="divider"></div>
+        <div class="muted" style="margin-bottom:8px">Credentials (leave blank to keep the currently-saved value)</div>
+        <div id="credFields"></div>
+        <button class="btn" style="margin-top:14px" id="saveBtn">Save</button>
+        <div class="err" id="err"></div>
+        <div class="ok-msg" id="ok"></div>
+      `;
+      const credEl = document.getElementById("credFields");
+      const fields = Object.keys(creds || {});
+      credEl.innerHTML = fields.length
+        ? fields.map((k) => `<label>${DASH.escapeHtml(k)} <span class="muted">(currently: ${DASH.escapeHtml(creds[k] || "not set")})</span></label><input data-cred="${k}" placeholder="Enter new value…" />`).join("")
+        : `<label>Key ID</label><input data-cred="keyId" placeholder="e.g. Razorpay key id" />
+           <label>Key Secret</label><input data-cred="keySecret" placeholder="e.g. Razorpay key secret" />`;
+
+      document.getElementById("saveBtn").addEventListener("click", async () => {
+        const errEl = document.getElementById("err");
+        const okEl = document.getElementById("ok");
+        errEl.textContent = "";
+        okEl.textContent = "";
+        const credentials = {};
+        credEl.querySelectorAll("[data-cred]").forEach((inp) => {
+          if (inp.value) credentials[inp.dataset.cred] = inp.value;
+        });
+        try {
+          await DASH.apiFetch(`/api/admin/payments/${site}`, {
+            method: "POST",
+            body: JSON.stringify({
+              provider: document.getElementById("provider").value,
+              enabled: document.getElementById("enabled").checked,
+              currency: document.getElementById("currency").value,
+              credentials,
+            }),
+          });
+          okEl.textContent = "Saved.";
+          loadConfig();
+        } catch (e) {
+          errEl.textContent = e.message;
+        }
+      });
+    } catch (e) {
+      formEl.innerHTML = `<div class="empty">${DASH.escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  document.getElementById("site").addEventListener("change", loadConfig);
+  loadSites().then(loadConfig);
+</script>
+</body>
+</html>

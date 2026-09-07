@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>ERA AI — Admin</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  const root = DASH.renderShell({ title: "ERA AI Knowledge Base" });
+  root.innerHTML = `
+    <div class="grid">
+      <div class="card"><h3>Status</h3><div id="statusText" class="muted">Loading…</div></div>
+      <div class="card">
+        <h3>Learning Mode</h3>
+        <label style="display:flex;align-items:center;gap:8px;margin:6px 0 0">
+          <input type="checkbox" id="learningToggle" style="width:auto" /> Let ERA learn from new Q&As
+        </label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>❓ Unanswered Questions</h2><button class="btn ghost sm" id="refreshBtn">↻ Refresh</button></div>
+      <div id="unansweredList"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>📚 Bulk Teach</h2></div>
+      <div class="muted" style="margin-bottom:8px">Paste Q&A pairs — one per line, format: <code>Q: ... | A: ...</code></div>
+      <textarea id="bulkText" placeholder="Q: What time does check-in start? | A: Check-in starts at 12 PM."></textarea>
+      <button class="btn" style="margin-top:10px" id="bulkSubmit">Teach These</button>
+      <div class="ok-msg" id="bulkOk"></div>
+      <div class="err" id="bulkErr"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>📝 Admin Notes</h2></div>
+      <div id="notesList" class="muted">Loading…</div>
+    </div>
+  `;
+
+  async function loadStatus() {
+    const { status } = await DASH.apiFetch("/api/admin/era/status");
+    document.getElementById("statusText").textContent = status;
+  }
+  async function loadLearning() {
+    // learning state comes bundled with status text in some setups; fall back to reading it from notes/status endpoint if not separately exposed.
+    try {
+      const { status } = await DASH.apiFetch("/api/admin/era/status");
+      document.getElementById("learningToggle").checked = /learning.*on|enabled/i.test(status || "");
+    } catch {}
+  }
+  document.getElementById("learningToggle").addEventListener("change", async (e) => {
+    await DASH.apiFetch("/api/admin/era/learning", { method: "POST", body: JSON.stringify({ enabled: e.target.checked }) }).catch((err) => alert(err.message));
+    loadStatus();
+  });
+
+  async function loadUnanswered() {
+    const el = document.getElementById("unansweredList");
+    el.innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      const { unanswered } = await DASH.apiFetch("/api/admin/era/unanswered");
+      if (!unanswered.length) return (el.innerHTML = '<div class="empty">No unanswered questions right now 🎉</div>');
+      el.innerHTML = unanswered
+        .map(
+          (q) => `<div class="card" style="margin-bottom:10px">
+            <div style="margin-bottom:8px"><b>${DASH.escapeHtml(q.question || q.text)}</b></div>
+            <textarea data-answer-for="${q.id}" placeholder="Type the answer…" style="min-height:60px"></textarea>
+            <div class="row" style="margin-top:8px">
+              <button class="btn sm" data-teach="${q.id}">Teach</button>
+              <button class="btn sm danger" data-discard="${q.id}">Discard</button>
+            </div>
+          </div>`
+        )
+        .join("");
+      el.querySelectorAll("[data-teach]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          const answer = el.querySelector(`[data-answer-for="${b.dataset.teach}"]`).value.trim();
+          if (!answer) return alert("Type an answer first.");
+          await DASH.apiFetch("/api/admin/era/answer", { method: "POST", body: JSON.stringify({ questionId: b.dataset.teach, answer }) }).catch((e) => alert(e.message));
+          loadUnanswered();
+        })
+      );
+      el.querySelectorAll("[data-discard]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          await DASH.apiFetch("/api/admin/era/discard", { method: "POST", body: JSON.stringify({ questionId: b.dataset.discard }) }).catch((e) => alert(e.message));
+          loadUnanswered();
+        })
+      );
+    } catch (e) {
+      el.innerHTML = `<div class="empty">${DASH.escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  document.getElementById("bulkSubmit").addEventListener("click", async () => {
+    const okEl = document.getElementById("bulkOk");
+    const errEl = document.getElementById("bulkErr");
+    okEl.textContent = "";
+    errEl.textContent = "";
+    const text = document.getElementById("bulkText").value.trim();
+    if (!text) return (errEl.textContent = "Paste something first.");
+    try {
+      const { taught, noted } = await DASH.apiFetch("/api/admin/era/bulk-teach", { method: "POST", body: JSON.stringify({ text }) });
+      okEl.textContent = `Taught ${taught} answer(s), added ${noted} note(s).`;
+      document.getElementById("bulkText").value = "";
+      loadNotes();
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
+  });
+
+  async function loadNotes() {
+    const el = document.getElementById("notesList");
+    try {
+      const { notes } = await DASH.apiFetch("/api/admin/era/notes");
+      el.innerHTML = notes && notes.length ? notes.map((n) => `<div style="padding:6px 0;border-bottom:1px dashed var(--card-border)">${DASH.escapeHtml(n)}</div>`).join("") : "No notes yet.";
+    } catch (e) {
+      el.textContent = e.message;
+    }
+  }
+
+  document.getElementById("refreshBtn").addEventListener("click", loadUnanswered);
+  loadStatus();
+  loadLearning();
+  loadUnanswered();
+  loadNotes();
+</script>
+</body>
+</html>

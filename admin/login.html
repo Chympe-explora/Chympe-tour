@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Admin Sign In — Chympe Explora</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo"><div class="dot" style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2))"></div></div>
+    <div class="auth-title">Admin Dashboard</div>
+    <div class="auth-sub">Complete control. Your website. Your rules.</div>
+
+    <div class="tabs">
+      <button class="active" data-tab="login">Log In</button>
+      <button data-tab="signup">Sign Up</button>
+      <button data-tab="forgot">Forgot</button>
+    </div>
+
+    <!-- ---------------- LOG IN ---------------- -->
+    <div class="tab-panel active" data-panel="login">
+      <div class="row" style="margin-bottom:4px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin:0">
+          <input type="checkbox" id="useMaster" style="width:auto" /> Use master password instead
+        </label>
+      </div>
+      <div id="loginAccountFields">
+        <label>Username</label>
+        <input id="loginUsername" autocomplete="username" placeholder="your username" />
+      </div>
+      <label>Password</label>
+      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••" />
+      <button class="btn block" id="loginBtn" style="margin-top:14px">Log In</button>
+      <div class="err" id="loginErr"></div>
+    </div>
+
+    <!-- ---------------- SIGN UP ---------------- -->
+    <div class="tab-panel" data-panel="signup">
+      <div id="signupStep1">
+        <label>Sign-up code</label>
+        <input id="suCode" placeholder="Given to you by an existing admin" />
+        <label>Choose a username</label>
+        <input id="suUsername" autocomplete="username" />
+        <label>Password</label>
+        <input id="suPassword" type="password" autocomplete="new-password" placeholder="8+ characters, letters + numbers" />
+        <label>Phone number (for OTP)</label>
+        <input id="suPhone" type="tel" placeholder="+91 98765 43210" />
+        <label>Email (optional, extra OTP channel)</label>
+        <input id="suEmail" type="email" placeholder="you@example.com" />
+        <button class="btn block" id="signupBtn" style="margin-top:14px">Create Account</button>
+        <div class="err" id="signupErr"></div>
+      </div>
+      <div id="signupStep2" style="display:none">
+        <div class="auth-sub" style="margin-bottom:4px">Enter the 6-digit code sent to verify your account</div>
+        <div class="otp-inputs" id="signupOtpBoxes">
+          <input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" />
+          <input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" />
+        </div>
+        <button class="btn block" id="signupVerifyBtn">Verify & Continue</button>
+        <div class="err" id="signupVerifyErr"></div>
+      </div>
+    </div>
+
+    <!-- ---------------- FORGOT PASSWORD ---------------- -->
+    <div class="tab-panel" data-panel="forgot">
+      <div id="forgotStep1">
+        <label>Username</label>
+        <input id="fpUsername" />
+        <label>Send code via</label>
+        <div class="channel-choice">
+          <label><input type="radio" name="fpChannel" value="auto" checked /> Auto</label>
+          <label><input type="radio" name="fpChannel" value="sms" /> SMS</label>
+          <label><input type="radio" name="fpChannel" value="email" /> Email</label>
+        </div>
+        <button class="btn block" id="forgotSendBtn">Send Code</button>
+        <div class="err" id="forgotErr"></div>
+      </div>
+      <div id="forgotStep2" style="display:none">
+        <div class="auth-sub" style="margin-bottom:4px">Enter the code, then your new password</div>
+        <div class="otp-inputs" id="forgotOtpBoxes">
+          <input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" />
+          <input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" />
+        </div>
+        <label>New password</label>
+        <input id="fpNewPassword" type="password" placeholder="8+ characters, letters + numbers" />
+        <button class="btn block" id="forgotResetBtn">Reset Password</button>
+        <div class="err" id="forgotResetErr"></div>
+        <div class="ok-msg" id="forgotOk"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  if (DASH.getToken()) window.location.href = "index.html";
+
+  // ---- tabs ----
+  document.querySelectorAll(".tabs button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.querySelector(`[data-panel="${btn.dataset.tab}"]`).classList.add("active");
+    });
+  });
+
+  // ---- master-password toggle ----
+  document.getElementById("useMaster").addEventListener("change", (e) => {
+    document.getElementById("loginAccountFields").style.display = e.target.checked ? "none" : "block";
+  });
+
+  function setBusy(btn, busy, label) {
+    btn.disabled = busy;
+    btn.innerHTML = busy ? '<span class="spinner"></span>' : label;
+  }
+
+  // ---- login ----
+  document.getElementById("loginBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("loginBtn");
+    const errEl = document.getElementById("loginErr");
+    errEl.textContent = "";
+    const useMaster = document.getElementById("useMaster").checked;
+    const password = document.getElementById("loginPassword").value;
+    const username = document.getElementById("loginUsername").value.trim();
+    if (!useMaster && !username) return (errEl.textContent = "Enter your username.");
+    if (!password) return (errEl.textContent = "Enter your password.");
+    setBusy(btn, true, "Log In");
+    try {
+      const body = useMaster ? { password } : { username, password };
+      const res = await fetch(window.DASH_API_BASE + "/api/admin/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Login failed.");
+      DASH.saveSession(data.token);
+      window.location.href = "index.html";
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      setBusy(btn, false, "Log In");
+    }
+  });
+
+  // ---- signup step 1 ----
+  const signupOtp = DASH.setupOtpInputs(document.getElementById("signupOtpBoxes"));
+  let signupUsername = "";
+  document.getElementById("signupBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("signupBtn");
+    const errEl = document.getElementById("signupErr");
+    errEl.textContent = "";
+    const body = {
+      signupCode: document.getElementById("suCode").value.trim(),
+      username: document.getElementById("suUsername").value.trim(),
+      password: document.getElementById("suPassword").value,
+      phone: document.getElementById("suPhone").value.trim() || undefined,
+      email: document.getElementById("suEmail").value.trim() || undefined,
+    };
+    setBusy(btn, true, "Create Account");
+    try {
+      const res = await fetch(window.DASH_API_BASE + "/api/admin/signup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Sign up failed.");
+      signupUsername = body.username;
+      document.getElementById("signupStep1").style.display = "none";
+      document.getElementById("signupStep2").style.display = "block";
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      setBusy(btn, false, "Create Account");
+    }
+  });
+
+  document.getElementById("signupVerifyBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("signupVerifyBtn");
+    const errEl = document.getElementById("signupVerifyErr");
+    errEl.textContent = "";
+    setBusy(btn, true, "Verify & Continue");
+    try {
+      const res = await fetch(window.DASH_API_BASE + "/api/admin/signup/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: signupUsername, code: signupOtp.value() }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Verification failed.");
+      DASH.saveSession(data.token);
+      window.location.href = "index.html";
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      setBusy(btn, false, "Verify & Continue");
+    }
+  });
+
+  // ---- forgot password ----
+  let forgotUsername = "";
+  document.getElementById("forgotSendBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("forgotSendBtn");
+    const errEl = document.getElementById("forgotErr");
+    errEl.textContent = "";
+    const username = document.getElementById("fpUsername").value.trim();
+    if (!username) return (errEl.textContent = "Enter your username.");
+    const channel = document.querySelector('input[name="fpChannel"]:checked').value;
+    setBusy(btn, true, "Send Code");
+    try {
+      const res = await fetch(window.DASH_API_BASE + "/api/admin/forgot-password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username, channel }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Could not send code.");
+      forgotUsername = username;
+      document.getElementById("forgotStep1").style.display = "none";
+      document.getElementById("forgotStep2").style.display = "block";
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      setBusy(btn, false, "Send Code");
+    }
+  });
+
+  const forgotOtp = DASH.setupOtpInputs(document.getElementById("forgotOtpBoxes"));
+  document.getElementById("forgotResetBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("forgotResetBtn");
+    const errEl = document.getElementById("forgotResetErr");
+    errEl.textContent = "";
+    const newPassword = document.getElementById("fpNewPassword").value;
+    setBusy(btn, true, "Reset Password");
+    try {
+      const res = await fetch(window.DASH_API_BASE + "/api/admin/reset-password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: forgotUsername, code: forgotOtp.value(), newPassword }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Reset failed.");
+      document.getElementById("forgotOk").textContent = "Password changed — you can log in now.";
+      document.getElementById("forgotStep2").style.display = "none";
+      document.querySelector('.tabs button[data-tab="login"]').click();
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      setBusy(btn, false, "Reset Password");
+    }
+  });
+</script>
+</body>
+</html>

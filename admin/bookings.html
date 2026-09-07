@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Bookings — Admin</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  const root = DASH.renderShell({ title: "Bookings" });
+  root.innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><h2>All Bookings</h2><button class="btn ghost sm" id="refreshBtn">↻ Refresh</button></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Name</th><th>Site / Package</th><th>Date</th><th>Persons</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="body"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+      </table></div>
+    </div>
+  `;
+
+  async function load() {
+    const body = document.getElementById("body");
+    body.innerHTML = '<tr><td colspan="7" class="empty">Loading…</td></tr>';
+    try {
+      const { bookings } = await DASH.apiFetch("/api/admin/bookings/recent");
+      if (!bookings.length) return (body.innerHTML = '<tr><td colspan="7" class="empty">No bookings yet.</td></tr>');
+      body.innerHTML = bookings
+        .map(
+          (b) => `<tr>
+            <td>${DASH.escapeHtml(b.name || "—")}</td>
+            <td>${DASH.escapeHtml(b.site || "—")} / ${DASH.escapeHtml(b.packageKey || "—")}</td>
+            <td>${DASH.escapeHtml(b.dateISO || b.date || "—")}</td>
+            <td>${DASH.escapeHtml(b.persons ?? "—")}</td>
+            <td>${b.amount != null ? DASH.fmtMoney(b.amount) : "—"}</td>
+            <td><span class="pill ${DASH.pillClass(b.status)}">${DASH.escapeHtml(b.status || "pending")}</span></td>
+            <td class="row">
+              <button class="btn sm" data-confirm="${b.id}">Confirm</button>
+              <button class="btn sm danger" data-reject="${b.id}">Reject</button>
+            </td>
+          </tr>`
+        )
+        .join("");
+      body.querySelectorAll("[data-confirm]").forEach((btn) =>
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          await DASH.apiFetch(`/api/admin/bookings/${btn.dataset.confirm}/confirm`, { method: "POST" }).catch((e) => alert(e.message));
+          load();
+        })
+      );
+      body.querySelectorAll("[data-reject]").forEach((btn) =>
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          await DASH.apiFetch(`/api/admin/bookings/${btn.dataset.reject}/reject`, { method: "POST" }).catch((e) => alert(e.message));
+          load();
+        })
+      );
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="7" class="empty">${DASH.escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+  document.getElementById("refreshBtn").addEventListener("click", load);
+  load();
+</script>
+</body>
+</html>

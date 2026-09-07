@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Settings — Admin</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  const root = DASH.renderShell({ title: "Settings" });
+  root.innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><h2>Sites</h2></div>
+      <div id="sitesList" class="muted">Loading…</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>📊 Stats</h2></div>
+      <div class="row">
+        <button class="btn secondary" id="resetStatsBtn">Reset Visitor/Booking Counters</button>
+      </div>
+    </div>
+
+    <div class="panel" style="border-color:var(--danger)">
+      <div class="panel-head"><h2 style="color:var(--danger)">🧨 Danger Zone</h2></div>
+      <div class="muted" style="margin-bottom:12px">Resets ALL site content, images, prices, highlights, ratings and discounts back to defaults for every site. This cannot be undone.</div>
+      <button class="btn danger" id="resetAllBtn">Reset EVERYTHING</button>
+      <div class="ok-msg" id="resetOk"></div>
+    </div>
+  `;
+
+  async function loadSites() {
+    const el = document.getElementById("sitesList");
+    const { sites } = await DASH.apiFetch("/api/admin/sites");
+    el.innerHTML = sites.map((s) => `<div style="padding:6px 0">• ${DASH.escapeHtml(s.label)} <span class="muted">(${s.id})</span></div>`).join("");
+  }
+
+  document.getElementById("resetStatsBtn").addEventListener("click", async () => {
+    if (!confirm("Reset visitor & booking counters to zero?")) return;
+    await DASH.apiFetch("/api/admin/stats/reset", { method: "POST" }).catch((e) => alert(e.message));
+    alert("Stats reset.");
+  });
+
+  document.getElementById("resetAllBtn").addEventListener("click", async () => {
+    if (!confirm("This will wipe ALL custom content back to defaults for EVERY site. Type-to-confirm next.")) return;
+    const typed = prompt('Type "RESET" to confirm — this cannot be undone:');
+    if (typed !== "RESET") return;
+    const okEl = document.getElementById("resetOk");
+    try {
+      await DASH.apiFetch("/api/admin/reset-all", { method: "POST" });
+      okEl.textContent = "Everything has been reset to defaults.";
+    } catch (e) {
+      alert(e.message);
+    }
+  });
+
+  loadSites();
+</script>
+</body>
+</html>

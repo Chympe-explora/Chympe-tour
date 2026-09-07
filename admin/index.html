@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Dashboard — Admin</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  const root = DASH.renderShell({ title: "Dashboard" });
+  root.innerHTML = `
+    <div class="grid" id="statCards">
+      <div class="card"><h3>Visitors</h3><div class="stat">…</div></div>
+      <div class="card"><h3>Confirmed Bookings</h3><div class="stat">…</div></div>
+      <div class="card"><h3>Guides</h3><div class="stat">…</div></div>
+      <div class="card"><h3>Pending Guide Requests</h3><div class="stat">…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Quick Actions</h2></div>
+      <div class="row">
+        <a class="btn secondary" href="guides.html">🧭 Manage Guides</a>
+        <a class="btn secondary" href="bookings.html">📖 Manage Bookings</a>
+        <a class="btn secondary" href="media.html">🖼️ Upload Media</a>
+        <a class="btn secondary" href="content.html">📝 Edit Website Content</a>
+        <a class="btn secondary" href="content.html?jump=fonts">🎨 Colors & Fonts</a>
+        <a class="btn secondary" href="era-ai.html">🤖 ERA AI</a>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Recent Bookings</h2><a class="btn ghost sm" href="bookings.html">View All →</a></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Booking</th><th>Date</th><th>Status</th></tr></thead>
+        <tbody id="recentBookingsBody"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Recent Guide Requests</h2><a class="btn ghost sm" href="guides.html">View All →</a></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Name</th><th>Site</th><th>Action</th></tr></thead>
+        <tbody id="pendingGuidesBody"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+      </table></div>
+    </div>
+  `;
+
+  async function loadStats() {
+    try {
+      const [statsRes, guidesRes, pendingRes] = await Promise.all([
+        DASH.apiFetch("/api/admin/stats"),
+        DASH.apiFetch("/api/admin/guides"),
+        DASH.apiFetch("/api/admin/guides/pending"),
+      ]);
+      const cards = document.querySelectorAll("#statCards .stat");
+      cards[0].textContent = statsRes.stats.visitors;
+      cards[1].textContent = statsRes.stats.bookings;
+      cards[2].textContent = guidesRes.guides.length;
+      cards[3].textContent = pendingRes.pending.length;
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function loadRecentBookings() {
+    const body = document.getElementById("recentBookingsBody");
+    try {
+      const { bookings } = await DASH.apiFetch("/api/admin/bookings/recent");
+      if (!bookings.length) return (body.innerHTML = '<tr><td colspan="3" class="empty">No bookings yet.</td></tr>');
+      body.innerHTML = bookings
+        .slice(0, 6)
+        .map(
+          (b) => `<tr>
+            <td>${DASH.escapeHtml(b.name || b.id)}</td>
+            <td>${DASH.escapeHtml(b.dateISO || b.date || "—")}</td>
+            <td><span class="pill ${DASH.pillClass(b.status)}">${DASH.escapeHtml(b.status || "pending")}</span></td>
+          </tr>`
+        )
+        .join("");
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="3" class="empty">${DASH.escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
+  async function loadPendingGuides() {
+    const body = document.getElementById("pendingGuidesBody");
+    try {
+      const { pending } = await DASH.apiFetch("/api/admin/guides/pending");
+      if (!pending.length) return (body.innerHTML = '<tr><td colspan="3" class="empty">No pending requests.</td></tr>');
+      body.innerHTML = pending
+        .slice(0, 6)
+        .map(
+          (g) => `<tr>
+            <td>${DASH.escapeHtml(g.name)}</td>
+            <td>${DASH.escapeHtml(g.site)}</td>
+            <td class="row">
+              <button class="btn sm" data-approve="${g.id}">Accept</button>
+              <button class="btn sm danger" data-reject="${g.id}">Reject</button>
+            </td>
+          </tr>`
+        )
+        .join("");
+      body.querySelectorAll("[data-approve]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          await DASH.apiFetch(`/api/admin/guides/${b.dataset.approve}/approve`, { method: "POST" });
+          loadPendingGuides();
+          loadStats();
+        })
+      );
+      body.querySelectorAll("[data-reject]").forEach((b) =>
+        b.addEventListener("click", async () => {
+          await DASH.apiFetch(`/api/admin/guides/${b.dataset.reject}/reject`, { method: "POST" });
+          loadPendingGuides();
+          loadStats();
+        })
+      );
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="3" class="empty">${DASH.escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
+  loadStats();
+  loadRecentBookings();
+  loadPendingGuides();
+</script>
+</body>
+</html>

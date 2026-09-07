@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Conversations — Admin</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+<style>
+  .conv-layout { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 860px) { .conv-layout { grid-template-columns: 280px 1fr; } }
+  .conv-item { padding: 10px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; }
+  .conv-item:hover, .conv-item.active { background: var(--card); border-color: var(--card-border); }
+  .conv-item .name { font-size: 13px; font-weight: 600; }
+  .conv-item .preview { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bubble { max-width: 80%; padding: 8px 12px; border-radius: 12px; margin-bottom: 8px; font-size: 13px; }
+  .bubble.visitor { background: var(--card); border: 1px solid var(--card-border); }
+  .bubble.ai, .bubble.human { background: linear-gradient(135deg, rgba(0,200,150,.18), rgba(30,144,255,.18)); margin-left: auto; }
+</style>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  const root = DASH.renderShell({ title: "Conversations" });
+  root.innerHTML = `
+    <div class="conv-layout">
+      <div class="panel" style="max-height:70vh;overflow-y:auto">
+        <div class="panel-head"><h2>Inbox</h2><button class="btn ghost sm" id="refreshBtn">↻</button></div>
+        <div id="convList"><div class="empty">Loading…</div></div>
+      </div>
+      <div class="panel" id="threadPanel">
+        <div class="empty">Select a conversation on the left.</div>
+      </div>
+    </div>
+  `;
+
+  let activeId = null;
+
+  async function loadList() {
+    const el = document.getElementById("convList");
+    try {
+      const { conversations } = await DASH.apiFetch("/api/admin/conversations");
+      if (!conversations.length) return (el.innerHTML = '<div class="empty">No conversations yet.</div>');
+      el.innerHTML = conversations
+        .map(
+          (c) => `<div class="conv-item${c.sessionId === activeId ? " active" : ""}" data-id="${c.sessionId}">
+            <div class="name">${DASH.escapeHtml(c.name || c.sessionId)} ${c.blocked ? "🚫" : ""}</div>
+            <div class="preview">${DASH.escapeHtml(c.lastMessage || "")}</div>
+          </div>`
+        )
+        .join("");
+      el.querySelectorAll("[data-id]").forEach((d) => d.addEventListener("click", () => openThread(d.dataset.id)));
+    } catch (e) {
+      el.innerHTML = `<div class="empty">${DASH.escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  async function openThread(id) {
+    activeId = id;
+    loadList();
+    const panel = document.getElementById("threadPanel");
+    panel.innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      const { log, blocked } = await DASH.apiFetch(`/api/admin/conversations/${id}`);
+      panel.innerHTML = `
+        <div class="panel-head">
+          <h2>${DASH.escapeHtml(id)}</h2>
+          <div class="row">
+            <select id="statusSel">
+              <option value="ai">AI replying</option>
+              <option value="human">Human replying</option>
+              <option value="paused">Paused</option>
+              <option value="closed">Closed</option>
+            </select>
+            <button class="btn sm secondary" id="toggleActiveBtn">Toggle Active</button>
+            <button class="btn sm ${blocked ? "" : "danger"}" id="toggleBlockBtn">${blocked ? "Unblock" : "Block"}</button>
+          </div>
+        </div>
+        <div id="msgs" style="max-height:40vh;overflow-y:auto;margin-bottom:12px"></div>
+        <textarea id="replyText" placeholder="Type a reply…" style="min-height:60px"></textarea>
+        <button class="btn" style="margin-top:8px" id="sendReplyBtn">Send Reply</button>
+      `;
+      document.getElementById("msgs").innerHTML = (log || [])
+        .map((m) => `<div class="bubble ${m.from}">${DASH.escapeHtml(m.text)}</div>`)
+        .join("");
+      document.getElementById("sendReplyBtn").addEventListener("click", async () => {
+        const text = document.getElementById("replyText").value.trim();
+        if (!text) return;
+        await DASH.apiFetch(`/api/admin/conversations/${id}/reply`, { method: "POST", body: JSON.stringify({ text }) }).catch((e) => alert(e.message));
+        document.getElementById("replyText").value = "";
+        openThread(id);
+      });
+      document.getElementById("statusSel").addEventListener("change", async (e) => {
+        await DASH.apiFetch(`/api/admin/conversations/${id}/status`, { method: "POST", body: JSON.stringify({ status: e.target.value }) }).catch((err) => alert(err.message));
+      });
+      document.getElementById("toggleActiveBtn").addEventListener("click", async () => {
+        await DASH.apiFetch(`/api/admin/conversations/${id}/toggle-active`, { method: "POST" }).catch((e) => alert(e.message));
+      });
+      document.getElementById("toggleBlockBtn").addEventListener("click", async () => {
+        await DASH.apiFetch(`/api/admin/conversations/${id}/toggle-block`, { method: "POST" }).catch((e) => alert(e.message));
+        openThread(id);
+      });
+    } catch (e) {
+      panel.innerHTML = `<div class="empty">${DASH.escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  document.getElementById("refreshBtn").addEventListener("click", loadList);
+  loadList();
+</script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Media — Admin</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  const root = DASH.renderShell({ title: "Media Manager" });
+  root.innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><h2>🖼️ Upload Image</h2></div>
+      <label>Site</label><select id="imgSite"></select>
+      <label>Key <span class="muted">(which image this replaces — e.g. "hero" or "gallery1")</span></label>
+      <input id="imgKey" placeholder="hero" />
+      <label>File</label><input id="imgFile" type="file" accept="image/*" />
+      <button class="btn" style="margin-top:14px" id="imgUpload">Upload Image</button>
+      <div class="err" id="imgErr"></div>
+      <div class="ok-msg" id="imgOk"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>🎬 Upload Video</h2></div>
+      <label>Site</label><select id="vidSite"></select>
+      <label>Key <span class="muted">(e.g. "backgroundVideo")</span></label>
+      <input id="vidKey" placeholder="backgroundVideo" />
+      <label>File</label><input id="vidFile" type="file" accept="video/*" />
+      <button class="btn" style="margin-top:14px" id="vidUpload">Upload Video</button>
+      <div class="err" id="vidErr"></div>
+      <div class="ok-msg" id="vidOk"></div>
+    </div>
+    <div class="hint">Uploads are stored via your Telegram bot (same as before) — no extra storage account needed. Large videos may take a minute.</div>
+  `;
+
+  async function loadSites() {
+    const { sites } = await DASH.apiFetch("/api/admin/sites");
+    const opts = sites.map((s) => `<option value="${s.id}">${DASH.escapeHtml(s.label)}</option>`).join("");
+    document.getElementById("imgSite").innerHTML = opts;
+    document.getElementById("vidSite").innerHTML = opts;
+  }
+  loadSites();
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result.split(",")[1]);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  function wireUpload({ btnId, fileId, siteId, keyId, endpoint, errId, okId }) {
+    document.getElementById(btnId).addEventListener("click", async () => {
+      const errEl = document.getElementById(errId);
+      const okEl = document.getElementById(okId);
+      errEl.textContent = "";
+      okEl.textContent = "";
+      const file = document.getElementById(fileId).files[0];
+      const key = document.getElementById(keyId).value.trim();
+      const site = document.getElementById(siteId).value;
+      if (!file) return (errEl.textContent = "Choose a file first.");
+      if (!key) return (errEl.textContent = "Enter a key.");
+      const btn = document.getElementById(btnId);
+      btn.disabled = true;
+      btn.textContent = "Uploading…";
+      try {
+        const base64 = await fileToBase64(file);
+        await DASH.apiFetch(endpoint, {
+          method: "POST",
+          body: JSON.stringify({ site, key, filename: file.name, mimeType: file.type, base64 }),
+        });
+        okEl.textContent = "Uploaded! It's live on the site now.";
+      } catch (e) {
+        errEl.textContent = e.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = btnId === "imgUpload" ? "Upload Image" : "Upload Video";
+      }
+    });
+  }
+
+  wireUpload({ btnId: "imgUpload", fileId: "imgFile", siteId: "imgSite", keyId: "imgKey", endpoint: "/api/admin/upload-image", errId: "imgErr", okId: "imgOk" });
+  wireUpload({ btnId: "vidUpload", fileId: "vidFile", siteId: "vidSite", keyId: "vidKey", endpoint: "/api/admin/upload-video", errId: "vidErr", okId: "vidOk" });
+</script>
+</body>
+</html>

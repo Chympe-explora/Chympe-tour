@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Guides — Admin</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  const root = DASH.renderShell({ title: "Guides" });
+  root.innerHTML = `
+    <div class="panel" id="pendingPanel" style="display:none">
+      <div class="panel-head"><h2>⏳ Pending Requests</h2></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Name</th><th>Site</th><th>Phone</th><th>Action</th></tr></thead>
+        <tbody id="pendingBody"></tbody>
+      </table></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Guide Management</h2></div>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Name</th><th>Site</th><th>Services</th><th>Status</th><th>Active</th><th>Booking Access</th><th>Actions</th></tr></thead>
+        <tbody id="guidesBody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>➕ Add New Guide</h2></div>
+      <label>Name</label><input id="ngName" />
+      <label>Site</label><select id="ngSite"></select>
+      <label>Services</label>
+      <div class="row" id="ngServices"></div>
+      <button class="btn" style="margin-top:14px" id="ngSubmit">Add Guide</button>
+      <div class="ok-msg" id="ngResult"></div>
+    </div>
+  `;
+
+  let sitePackages = {};
+
+  async function loadPending() {
+    const panel = document.getElementById("pendingPanel");
+    const body = document.getElementById("pendingBody");
+    const { pending } = await DASH.apiFetch("/api/admin/guides/pending");
+    if (!pending.length) return (panel.style.display = "none");
+    panel.style.display = "block";
+    body.innerHTML = pending
+      .map(
+        (g) => `<tr>
+          <td>${DASH.escapeHtml(g.name)}</td><td>${DASH.escapeHtml(g.site)}</td><td>${DASH.escapeHtml(g.phone || "—")}</td>
+          <td class="row">
+            <button class="btn sm" data-approve="${g.id}">Accept</button>
+            <button class="btn sm danger" data-reject="${g.id}">Reject</button>
+          </td>
+        </tr>`
+      )
+      .join("");
+    body.querySelectorAll("[data-approve]").forEach((b) => b.addEventListener("click", () => act(`/api/admin/guides/${b.dataset.approve}/approve`)));
+    body.querySelectorAll("[data-reject]").forEach((b) => b.addEventListener("click", () => act(`/api/admin/guides/${b.dataset.reject}/reject`)));
+  }
+
+  async function act(path) {
+    await DASH.apiFetch(path, { method: "POST" }).catch((e) => alert(e.message));
+    loadAll();
+  }
+
+  async function loadGuides() {
+    const body = document.getElementById("guidesBody");
+    const { guides, sitePackages: sp, guideSites } = await DASH.apiFetch("/api/admin/guides");
+    sitePackages = sp;
+    const siteSel = document.getElementById("ngSite");
+    if (!siteSel.options.length) {
+      siteSel.innerHTML = guideSites.map((s) => `<option value="${s}">${s}</option>`).join("");
+      renderServiceChecks(siteSel.value);
+      siteSel.addEventListener("change", () => renderServiceChecks(siteSel.value));
+    }
+    if (!guides.length) return (body.innerHTML = '<tr><td colspan="7" class="empty">No guides yet.</td></tr>');
+    body.innerHTML = guides
+      .filter((g) => g.status !== "pending")
+      .map(
+        (g) => `<tr>
+          <td>${DASH.escapeHtml(g.name)}</td>
+          <td>${DASH.escapeHtml(g.site)}</td>
+          <td>${DASH.escapeHtml((g.services || []).join(", "))}</td>
+          <td><span class="pill approved">${DASH.escapeHtml(g.status || "approved")}</span></td>
+          <td><span class="pill ${g.active ? "active-y" : "active-n"}">${g.active ? "Active" : "Inactive"}</span></td>
+          <td><span class="pill ${g.bookingAccess !== false ? "active-y" : "active-n"}">${g.bookingAccess !== false ? "Allowed" : "Removed"}</span></td>
+          <td class="row">
+            <button class="btn sm secondary" data-toggle-active="${g.id}">Toggle Active</button>
+            <button class="btn sm secondary" data-toggle-access="${g.id}">Toggle Access</button>
+            <button class="btn sm secondary" data-regen="${g.id}">Regen Code</button>
+            <button class="btn sm danger" data-remove="${g.id}">Remove</button>
+          </td>
+        </tr>`
+      )
+      .join("");
+    body.querySelectorAll("[data-toggle-active]").forEach((b) => b.addEventListener("click", () => act(`/api/admin/guides/${b.dataset.toggleActive}/toggle-active`)));
+    body.querySelectorAll("[data-toggle-access]").forEach((b) => b.addEventListener("click", () => act(`/api/admin/guides/${b.dataset.toggleAccess}/toggle-access`)));
+    body.querySelectorAll("[data-regen]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const { code } = await DASH.apiFetch(`/api/admin/guides/${b.dataset.regen}/regenerate-code`, { method: "POST" }).catch((e) => {
+          alert(e.message);
+          return {};
+        });
+        if (code) alert("New access code: " + code);
+      })
+    );
+    body.querySelectorAll("[data-remove]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        if (!confirm("Remove this guide?")) return;
+        await DASH.apiFetch(`/api/admin/guides/${b.dataset.remove}`, { method: "DELETE" }).catch((e) => alert(e.message));
+        loadAll();
+      })
+    );
+  }
+
+  function renderServiceChecks(site) {
+    const el = document.getElementById("ngServices");
+    const pkgs = sitePackages[site] || [];
+    el.innerHTML =
+      `<label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px"><input type="checkbox" value="all" checked style="width:auto"/> All</label>` +
+      pkgs.map((p) => `<label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px"><input type="checkbox" value="${p.key}" style="width:auto"/> ${p.label}</label>`).join("");
+  }
+
+  document.getElementById("ngSubmit").addEventListener("click", async () => {
+    const name = document.getElementById("ngName").value.trim();
+    const site = document.getElementById("ngSite").value;
+    const checked = Array.from(document.querySelectorAll("#ngServices input:checked")).map((i) => i.value);
+    const resEl = document.getElementById("ngResult");
+    resEl.textContent = "";
+    if (!name) return (resEl.textContent = "Enter a name."), (resEl.className = "err");
+    try {
+      const { code } = await DASH.apiFetch("/api/admin/guides", { method: "POST", body: JSON.stringify({ name, site, services: checked }) });
+      resEl.className = "ok-msg";
+      resEl.textContent = `Guide added — access code: ${code}`;
+      document.getElementById("ngName").value = "";
+      loadAll();
+    } catch (e) {
+      resEl.className = "err";
+      resEl.textContent = e.message;
+    }
+  });
+
+  function loadAll() {
+    loadPending();
+    loadGuides();
+  }
+  loadAll();
+</script>
+</body>
+</html>

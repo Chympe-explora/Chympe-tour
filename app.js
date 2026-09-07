@@ -752,6 +752,7 @@
         h(
           "div", { className: "flex items-center gap-2" },
           h("button", { onClick: function () { navigateTo(HEADER_CTA); }, className: "hidden md:block bg-[#2E8B57] hover:bg-[#257a4b] px-5 py-2 rounded-full text-sm font-medium transition" }, HEADER_CTA.label || "Book Now"),
+          h("button", { onClick: function () { window.open("guide/login.html", "_blank"); }, className: "hidden md:block bg-white/[0.06] hover:bg-white/10 border border-white/15 px-5 py-2 rounded-full text-sm font-medium transition" }, "Register"),
           h("button", { onClick: function () { setMobileMenuOpen(!mobileMenuOpen); }, className: "md:hidden w-9 h-9 rounded-full bg-white/10 border border-white/10 flex items-center justify-center" }, mobileMenuOpen ? h(X, { size: 18 }) : h(Menu, { size: 18 }))
         )
       ),
@@ -764,7 +765,8 @@
             className: "w-full text-left px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10"
           }, item.label);
         }),
-        h("button", { onClick: function () { navigateTo(HEADER_CTA); }, className: "w-full bg-[#2E8B57] py-3 rounded-full font-medium" }, HEADER_CTA.label || "Book Now")
+        h("button", { onClick: function () { navigateTo(HEADER_CTA); }, className: "w-full bg-[#2E8B57] py-3 rounded-full font-medium" }, HEADER_CTA.label || "Book Now"),
+        h("button", { onClick: function () { setMobileMenuOpen(false); window.open("guide/login.html", "_blank"); }, className: "w-full bg-white/5 border border-white/15 py-3 rounded-full font-medium" }, "Register (Guide Login / Sign Up)")
       )
     );
 

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Waiting for Approval — Guide</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card" style="text-align:center">
+    <div style="font-size:44px;margin-bottom:6px">⏳</div>
+    <div class="auth-title">Waiting for Approval</div>
+    <div class="auth-sub" id="msg">An admin needs to approve your account before you can take bookings. This page will move on automatically once you're approved.</div>
+    <div class="row" style="justify-content:center;margin-top:16px">
+      <button class="btn secondary sm" id="checkBtn">Check Again</button>
+      <a class="btn ghost sm" href="account.html">My Account</a>
+      <button class="btn ghost sm" id="logoutBtn">Logout</button>
+    </div>
+  </div>
+</div>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  async function check() {
+    try {
+      const { guide } = await DASH.apiFetch("/api/guide/me");
+      DASH.cacheGuide(guide);
+      if (guide.status !== "pending") window.location.href = "index.html";
+    } catch {}
+  }
+  document.getElementById("checkBtn").addEventListener("click", check);
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    await DASH.apiFetch("/api/logout", { method: "POST" }).catch(() => {});
+    DASH.clearSession();
+    window.location.href = "login.html";
+  });
+  check();
+  setInterval(check, 20000);
+</script>
+</body>
+</html>

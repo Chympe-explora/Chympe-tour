@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>My Services — Guide</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  DASH.checkGuidePendingGate().then((redirected) => {
+    if (redirected) return;
+    const root = DASH.renderShell({ title: "My Services" });
+    root.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h2>Services You're Assigned</h2></div>
+        <div id="list"><div class="empty">Loading…</div></div>
+        <div class="hint">To change which services you offer, ask an admin — this keeps bookings routed to the right guide.</div>
+      </div>
+    `;
+
+    async function load() {
+      const el = document.getElementById("list");
+      try {
+        const { guide, packages } = await DASH.apiFetch("/api/guide/me");
+        const assigned = guide.services || [];
+        const showAll = assigned.includes("all");
+        el.innerHTML = (packages || [])
+          .map((p) => {
+            const has = showAll || assigned.includes(p.key);
+            return `<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--card-border)">
+              <span>${DASH.escapeHtml(p.label)}</span>
+              <span class="pill ${has ? "active-y" : "active-n"}">${has ? "Assigned" : "Not assigned"}</span>
+            </div>`;
+          })
+          .join("") || '<div class="empty">No packages configured for your site yet.</div>';
+      } catch (e) {
+        el.innerHTML = `<div class="empty">${DASH.escapeHtml(e.message)}</div>`;
+      }
+    }
+    load();
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Dashboard — Guide</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  DASH.checkGuidePendingGate().then((redirected) => {
+    if (redirected) return;
+    const root = DASH.renderShell({ title: "Guide Dashboard" });
+    root.innerHTML = `
+      <div class="grid" id="statCards">
+        <div class="card"><h3>Today's Bookings</h3><div class="stat">…</div></div>
+        <div class="card"><h3>Upcoming Bookings</h3><div class="stat">…</div></div>
+        <div class="card">
+          <h3>Active Status</h3>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:6px">
+            <input type="checkbox" id="activeToggle" style="width:auto" /> Available for new bookings
+          </label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Today's Schedule</h2><a class="btn ghost sm" href="bookings.html">View All →</a></div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Time</th><th>Booking</th><th>Persons</th><th>Status</th></tr></thead>
+          <tbody id="todayBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+        </table></div>
+      </div>
+    `;
+
+    async function load() {
+      try {
+        const { guide } = await DASH.apiFetch("/api/guide/me");
+        document.getElementById("activeToggle").checked = !!guide.active;
+        const { bookings } = await DASH.apiFetch("/api/guide/bookings");
+        const now = Date.now();
+        const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+        const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
+        const isToday = (b) => b.dateISO && new Date(b.dateISO) >= startOfToday && new Date(b.dateISO) <= endOfToday;
+        const todays = bookings.filter(isToday);
+        const upcoming = bookings.filter((b) => b.dateISO && new Date(b.dateISO) > endOfToday && b.status !== "cancelled");
+        document.querySelectorAll("#statCards .stat")[0].textContent = todays.length;
+        document.querySelectorAll("#statCards .stat")[1].textContent = upcoming.length;
+
+        const body = document.getElementById("todayBody");
+        body.innerHTML = todays.length
+          ? todays
+              .map(
+                (b) => `<tr>
+                <td>${DASH.escapeHtml(b.dateISO ? new Date(b.dateISO).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—")}</td>
+                <td>${DASH.escapeHtml(b.name || b.packageKey || "—")}</td>
+                <td>${DASH.escapeHtml(b.persons ?? "—")}</td>
+                <td><span class="pill ${DASH.pillClass(b.status)}">${DASH.escapeHtml(b.status || "pending")}</span></td>
+              </tr>`
+              )
+              .join("")
+          : '<tr><td colspan="4" class="empty">Nothing scheduled today.</td></tr>';
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    document.getElementById("activeToggle").addEventListener("change", async () => {
+      await DASH.apiFetch("/api/guide/toggle-active", { method: "POST" }).catch((e) => alert(e.message));
+    });
+
+    load();
+  });
+</script>
+</body>
+</html>

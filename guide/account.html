@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>My Account — Guide</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  // account.html is intentionally exempt from the pending-approval
+  // redirect (see common.js) so a pending guide can still view this page.
+  const root = DASH.renderShell({ title: "My Account" });
+  root.innerHTML = `
+    <div class="panel" id="statusPanel"></div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>Profile</h2></div>
+      <div id="profile"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>🔑 Password & Login</h2></div>
+      <div class="muted" style="margin-bottom:8px">Set or change your phone/email + password login (works alongside any access code the admin gave you).</div>
+      <label>Phone or Email</label><input id="accIdentifier" />
+      <label>New Password</label><input id="accPassword" type="password" placeholder="8+ characters, letters + numbers" />
+      <div class="hint">Uses the same "forgot password" OTP flow on the login page to confirm it's really you before this takes effect.</div>
+      <button class="btn" style="margin-top:10px" id="goForgot">Set via OTP on Login Page</button>
+    </div>
+  `;
+
+  async function load() {
+    const profileEl = document.getElementById("profile");
+    const statusEl = document.getElementById("statusPanel");
+    try {
+      const { guide } = await DASH.apiFetch("/api/guide/me");
+      DASH.cacheGuide(guide);
+      statusEl.innerHTML =
+        guide.status === "pending"
+          ? `<div class="row" style="align-items:center"><span class="pill pending">Pending Approval</span><span class="muted">Your account is waiting for an admin to approve it. You can still update your details below.</span></div>`
+          : `<div class="row" style="align-items:center"><span class="pill approved">Approved</span><span class="muted">You're all set — bookings can be assigned to you.</span></div>`;
+      profileEl.innerHTML = `
+        <label>Name</label><div class="tree-val" style="margin-bottom:10px">${DASH.escapeHtml(guide.name)}</div>
+        <label>Site</label><div class="tree-val" style="margin-bottom:10px">${DASH.escapeHtml(guide.site)}</div>
+        <label>Phone</label><div class="tree-val" style="margin-bottom:10px">${DASH.escapeHtml(guide.phone || "—")}</div>
+        <label>Email</label><div class="tree-val" style="margin-bottom:10px">${DASH.escapeHtml(guide.email || "—")}</div>
+      `;
+    } catch (e) {
+      profileEl.innerHTML = `<div class="empty">${DASH.escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  document.getElementById("goForgot").addEventListener("click", () => {
+    const identifier = document.getElementById("accIdentifier").value.trim();
+    if (identifier) sessionStorage.setItem("prefillIdentifier", identifier);
+    window.location.href = "login.html#forgot";
+  });
+
+  load();
+</script>
+</body>
+</html>

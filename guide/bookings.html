@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>My Bookings — Guide</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  DASH.requireAuth();
+  DASH.checkGuidePendingGate().then((redirected) => {
+    if (redirected) return;
+    const root = DASH.renderShell({ title: "My Bookings" });
+    root.innerHTML = `
+      <div class="panel">
+        <div class="panel-head"><h2>All My Bookings</h2><button class="btn ghost sm" id="refreshBtn">↻ Refresh</button></div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Booking</th><th>Date</th><th>Persons</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="body"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+        </table></div>
+      </div>
+    `;
+
+    async function load() {
+      const body = document.getElementById("body");
+      body.innerHTML = '<tr><td colspan="5" class="empty">Loading…</td></tr>';
+      try {
+        const { bookings } = await DASH.apiFetch("/api/guide/bookings");
+        if (!bookings.length) return (body.innerHTML = '<tr><td colspan="5" class="empty">No bookings assigned yet.</td></tr>');
+        body.innerHTML = bookings
+          .map(
+            (b) => `<tr>
+              <td>${DASH.escapeHtml(b.name || b.packageKey || "—")}</td>
+              <td>${DASH.escapeHtml(b.dateISO || b.date || "—")}</td>
+              <td>${DASH.escapeHtml(b.persons ?? "—")}</td>
+              <td><span class="pill ${DASH.pillClass(b.status)}">${DASH.escapeHtml(b.status || "pending")}</span></td>
+              <td class="row">
+                ${
+                  b.status === "pending" || !b.status
+                    ? `<button class="btn sm" data-confirm="${b.id}">Confirm</button><button class="btn sm danger" data-reject="${b.id}">Reject</button>`
+                    : '<span class="muted">—</span>'
+                }
+              </td>
+            </tr>`
+          )
+          .join("");
+        body.querySelectorAll("[data-confirm]").forEach((btn) =>
+          btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            await DASH.apiFetch(`/api/guide/bookings/${btn.dataset.confirm}/confirm`, { method: "POST" }).catch((e) => alert(e.message));
+            load();
+          })
+        );
+        body.querySelectorAll("[data-reject]").forEach((btn) =>
+          btn.addEventListener("click", async () => {
+            btn.disabled = true;
+            await DASH.apiFetch(`/api/guide/bookings/${btn.dataset.reject}/reject`, { method: "POST" }).catch((e) => alert(e.message));
+            load();
+          })
+        );
+      } catch (e) {
+        body.innerHTML = `<tr><td colspan="5" class="empty">${DASH.escapeHtml(e.message)}</td></tr>`;
+      }
+    }
+    document.getElementById("refreshBtn").addEventListener("click", load);
+    load();
+  });
+</script>
+</body>
+</html>

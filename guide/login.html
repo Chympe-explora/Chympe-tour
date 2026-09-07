@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Guide Login — Team Explo Era</title>
+<link rel="stylesheet" href="../dashboard-assets/common.css" />
+<script src="config.js"></script>
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo"><div class="dot" style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2))"></div></div>
+    <div class="auth-title">Guide Portal</div>
+    <div class="auth-sub">Manage your bookings, earnings and profile</div>
+
+    <div class="tabs">
+      <button class="active" data-tab="login">Log In</button>
+      <button data-tab="signup">Sign Up</button>
+      <button data-tab="join">Request to Join</button>
+      <button data-tab="forgot">Forgot</button>
+    </div>
+
+    <!-- ---------------- LOG IN ---------------- -->
+    <div class="tab-panel active" data-panel="login">
+      <div class="row" style="margin-bottom:4px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin:0">
+          <input type="checkbox" id="useCode" style="width:auto" /> I have an access code instead
+        </label>
+      </div>
+      <div id="loginAccountFields">
+        <label>Phone or Email</label>
+        <input id="loginIdentifier" placeholder="+91 98765 43210 or you@example.com" />
+        <label>Password</label>
+        <input id="loginPassword" type="password" autocomplete="current-password" />
+      </div>
+      <div id="loginCodeFields" style="display:none">
+        <label>Access Code</label>
+        <input id="loginCode" placeholder="Given to you by the admin" />
+      </div>
+      <button class="btn block" id="loginBtn" style="margin-top:14px">Log In</button>
+      <div class="err" id="loginErr"></div>
+    </div>
+
+    <!-- ---------------- SIGN UP ---------------- -->
+    <div class="tab-panel" data-panel="signup">
+      <div id="signupStep1">
+        <label>Your name</label><input id="suName" />
+        <label>Phone</label><input id="suPhone" type="tel" placeholder="+91 98765 43210" />
+        <label>Email (optional)</label><input id="suEmail" type="email" />
+        <label>Site you'll guide for</label><select id="suSite"></select>
+        <label>Password</label><input id="suPassword" type="password" placeholder="8+ characters, letters + numbers" />
+        <button class="btn block" id="signupBtn" style="margin-top:14px">Sign Up</button>
+        <div class="err" id="signupErr"></div>
+      </div>
+      <div id="signupStep2" style="display:none">
+        <div class="auth-sub" style="margin-bottom:4px">Enter the 6-digit code sent to verify your account</div>
+        <div class="otp-inputs" id="signupOtpBoxes">
+          <input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" />
+          <input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" />
+        </div>
+        <button class="btn block" id="signupVerifyBtn">Verify</button>
+        <div class="hint">You'll land on a "waiting for approval" screen until the admin accepts you — that's normal.</div>
+        <div class="err" id="signupVerifyErr"></div>
+      </div>
+    </div>
+
+    <!-- ---------------- REQUEST TO JOIN (no password, no code) ---------------- -->
+    <div class="tab-panel" data-panel="join">
+      <div class="hint" style="margin-bottom:10px">Quickest way in — no password needed. You'll get a "waiting for approval" screen until the admin accepts you.</div>
+      <label>Your name</label><input id="jnName" />
+      <label>Phone (optional)</label><input id="jnPhone" type="tel" />
+      <label>Site you'll guide for</label><select id="jnSite"></select>
+      <button class="btn block" id="joinBtn" style="margin-top:14px">Request to Join</button>
+      <div class="err" id="joinErr"></div>
+    </div>
+
+    <!-- ---------------- FORGOT PASSWORD ---------------- -->
+    <div class="tab-panel" data-panel="forgot">
+      <div id="forgotStep1">
+        <label>Phone or Email on your account</label>
+        <input id="fpIdentifier" />
+        <label>Send code via</label>
+        <div class="channel-choice">
+          <label><input type="radio" name="fpChannel" value="auto" checked /> Auto</label>
+          <label><input type="radio" name="fpChannel" value="sms" /> SMS</label>
+          <label><input type="radio" name="fpChannel" value="email" /> Email</label>
+        </div>
+        <button class="btn block" id="forgotSendBtn">Send Code</button>
+        <div class="err" id="forgotErr"></div>
+      </div>
+      <div id="forgotStep2" style="display:none">
+        <div class="otp-inputs" id="forgotOtpBoxes">
+          <input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" />
+          <input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" /><input maxlength="1" inputmode="numeric" />
+        </div>
+        <label>New password</label>
+        <input id="fpNewPassword" type="password" />
+        <button class="btn block" id="forgotResetBtn">Reset Password</button>
+        <div class="err" id="forgotResetErr"></div>
+        <div class="ok-msg" id="forgotOk"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../dashboard-assets/common.js"></script>
+<script>
+  if (DASH.getToken()) window.location.href = "index.html";
+
+  if (location.hash === "#forgot") {
+    document.querySelector('.tabs button[data-tab="forgot"]').click();
+    const prefill = sessionStorage.getItem("prefillIdentifier");
+    if (prefill) {
+      document.getElementById("fpIdentifier").value = prefill;
+      sessionStorage.removeItem("prefillIdentifier");
+    }
+  }
+
+  document.querySelectorAll(".tabs button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.querySelector(`[data-panel="${btn.dataset.tab}"]`).classList.add("active");
+    });
+  });
+
+  document.getElementById("useCode").addEventListener("change", (e) => {
+    document.getElementById("loginAccountFields").style.display = e.target.checked ? "none" : "block";
+    document.getElementById("loginCodeFields").style.display = e.target.checked ? "block" : "none";
+  });
+
+  function setBusy(btn, busy, label) {
+    btn.disabled = busy;
+    btn.innerHTML = busy ? '<span class="spinner"></span>' : label;
+  }
+
+  // Guides can't call the admin-only /api/admin/sites endpoint, so the
+  // site list here is the same fixed set guides.js (GUIDE_SITES) uses.
+  const GUIDE_SITE_OPTIONS = ["krem-chympe", "wilderness-expedition"];
+  ["suSite", "jnSite"].forEach((id) => {
+    document.getElementById(id).innerHTML = GUIDE_SITE_OPTIONS.map((s) => `<option value="${s}">${s}</option>`).join("");
+  });
+
+  function afterLogin(data) {
+    DASH.saveSession(data.token);
+    DASH.cacheGuide(data.guide);
+    window.location.href = "index.html";
+  }
+
+  // ---- login ----
+  document.getElementById("loginBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("loginBtn");
+    const errEl = document.getElementById("loginErr");
+    errEl.textContent = "";
+    const useCode = document.getElementById("useCode").checked;
+    setBusy(btn, true, "Log In");
+    try {
+      const body = useCode
+        ? { code: document.getElementById("loginCode").value.trim() }
+        : { identifier: document.getElementById("loginIdentifier").value.trim(), password: document.getElementById("loginPassword").value };
+      const res = await fetch(window.DASH_API_BASE + "/api/guide/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Login failed.");
+      afterLogin(data);
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      setBusy(btn, false, "Log In");
+    }
+  });
+
+  // ---- signup ----
+  const signupOtp = DASH.setupOtpInputs(document.getElementById("signupOtpBoxes"));
+  let signedUpGuideId = null;
+  document.getElementById("signupBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("signupBtn");
+    const errEl = document.getElementById("signupErr");
+    errEl.textContent = "";
+    setBusy(btn, true, "Sign Up");
+    try {
+      const res = await fetch(window.DASH_API_BASE + "/api/guide/signup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: document.getElementById("suName").value.trim(),
+          phone: document.getElementById("suPhone").value.trim() || undefined,
+          email: document.getElementById("suEmail").value.trim() || undefined,
+          site: document.getElementById("suSite").value,
+          password: document.getElementById("suPassword").value,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Sign up failed.");
+      signedUpGuideId = data.guide.id;
+      // Already logged in (as pending) — but let them confirm the OTP first for security.
+      DASH.saveSession(data.token);
+      DASH.cacheGuide(data.guide);
+      document.getElementById("signupStep1").style.display = "none";
+      document.getElementById("signupStep2").style.display = "block";
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      setBusy(btn, false, "Sign Up");
+    }
+  });
+  document.getElementById("signupVerifyBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("signupVerifyBtn");
+    const errEl = document.getElementById("signupVerifyErr");
+    errEl.textContent = "";
+    setBusy(btn, true, "Verify");
+    try {
+      await DASH.apiFetch("/api/guide/signup/verify", { method: "POST", body: JSON.stringify({ guideId: signedUpGuideId, code: signupOtp.value() }) });
+      window.location.href = "index.html";
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      setBusy(btn, false, "Verify");
+    }
+  });
+
+  // ---- request to join (no code, no password) ----
+  document.getElementById("joinBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("joinBtn");
+    const errEl = document.getElementById("joinErr");
+    errEl.textContent = "";
+    setBusy(btn, true, "Request to Join");
+    try {
+      const res = await fetch(window.DASH_API_BASE + "/api/guide/request-join", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: document.getElementById("jnName").value.trim(),
+          phone: document.getElementById("jnPhone").value.trim() || undefined,
+          site: document.getElementById("jnSite").value,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Request failed.");
+      afterLogin(data);
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      setBusy(btn, false, "Request to Join");
+    }
+  });
+
+  // ---- forgot password ----
+  let forgotIdentifier = "";
+  document.getElementById("forgotSendBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("forgotSendBtn");
+    const errEl = document.getElementById("forgotErr");
+    errEl.textContent = "";
+    const identifier = document.getElementById("fpIdentifier").value.trim();
+    if (!identifier) return (errEl.textContent = "Enter your phone or email.");
+    const channel = document.querySelector('input[name="fpChannel"]:checked').value;
+    setBusy(btn, true, "Send Code");
+    try {
+      const res = await fetch(window.DASH_API_BASE + "/api/guide/forgot-password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identifier, channel }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Could not send code.");
+      forgotIdentifier = identifier;
+      document.getElementById("forgotStep1").style.display = "none";
+      document.getElementById("forgotStep2").style.display = "block";
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      setBusy(btn, false, "Send Code");
+    }
+  });
+  const forgotOtp = DASH.setupOtpInputs(document.getElementById("forgotOtpBoxes"));
+  document.getElementById("forgotResetBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("forgotResetBtn");
+    const errEl = document.getElementById("forgotResetErr");
+    errEl.textContent = "";
+    setBusy(btn, true, "Reset Password");
+    try {
+      const res = await fetch(window.DASH_API_BASE + "/api/guide/reset-password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identifier: forgotIdentifier, code: forgotOtp.value(), newPassword: document.getElementById("fpNewPassword").value }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Reset failed.");
+      document.getElementById("forgotOk").textContent = "Password changed — you can log in now.";
+      document.getElementById("forgotStep2").style.display = "none";
+      document.querySelector('.tabs button[data-tab="login"]').click();
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      setBusy(btn, false, "Reset Password");
+    }
+  });
+</script>
+</body>
+</html>
